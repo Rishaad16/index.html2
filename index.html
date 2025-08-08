@@ -181,11 +181,36 @@ window.pingFirebase = async function(){
     await saveToFirebase();
   }
 
-  window.setPoints = async function(i, val){
-    players[i].points = parseInt(val)||0;
-    draw();
-    await saveToFirebase();
-  }
+ window.setPlayed = async function(i, val){
+  let v = parseInt(val); if(isNaN(v) || v < 0) v = 0;
+  // Zorg dat gespeeld >= wins + losses
+  const w = players[i].wins || 0;
+  const l = players[i].losses || 0;
+  players[i].played = Math.max(v, w + l);
+  draw();
+  await saveToFirebase();
+};
+
+window.setWins = async function(i, val){
+  let w = parseInt(val); if(isNaN(w) || w < 0) w = 0;
+  const l = players[i].losses || 0;
+  players[i].wins = w;
+  // Optie: gespeeld automatisch = wins + losses (nooit kleiner)
+  players[i].played = Math.max(players[i].played || 0, w + l);
+  draw();
+  await saveToFirebase();
+};
+
+window.setLosses = async function(i, val){
+  let l = parseInt(val); if(isNaN(l) || l < 0) l = 0;
+  const w = players[i].wins || 0;
+  players[i].losses = l;
+  // Optie: gespeeld automatisch = wins + losses (nooit kleiner)
+  players[i].played = Math.max(players[i].played || 0, w + l);
+  draw();
+  await saveToFirebase();
+};
+
 
   // --- Leaderboard (ranking) ---
   function drawLeaderboard(){
@@ -205,17 +230,27 @@ window.pingFirebase = async function(){
       tb.insertAdjacentHTML('beforeend', `
         <tr>
           <td>${medal}${rank}</td>
-          <td><input type="checkbox" ${p.active?'checked':''} onclick="toggleActive(${i})"></td>
-          <td>${p.name}</td>
-          <td>${p.played}</td>
-          <td>${p.wins}</td>
-          <td>${p.losses}</td>
-          <td>${winPct}</td>
-          <td><input type="number" value="${p.points}" onchange="setPoints(${i}, this.value)"></td>
-        </tr>
-      `);
-    });
-  }
+    <td><input type="checkbox" ${p.active?'checked':''} onclick="toggleActive(${i})"></td>
+    <td>${p.name}</td>
+    <td>
+      <input type="number" min="0" value="${p.played}"
+             onchange="setPlayed(${i}, this.value)" style="width:70px">
+    </td>
+    <td>
+      <input type="number" min="0" value="${p.wins}"
+             onchange="setWins(${i}, this.value)" style="width:70px">
+    </td>
+    <td>
+      <input type="number" min="0" value="${p.losses}"
+             onchange="setLosses(${i}, this.value)" style="width:70px">
+    </td>
+    <td>${winPct}</td>
+    <td>
+      <input type="number" value="${p.points}"
+             onchange="setPoints(${i}, this.value)" style="width:70px">
+    </td>
+  </tr>
+`);
 
   // --- Result selects ---
   function fillResultSelects(){
