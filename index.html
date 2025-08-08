@@ -125,6 +125,21 @@ const firebaseConfig = {
   const app = initializeApp(firebaseConfig);
   const db  = getDatabase(app);
   const DB_PATH = "tournamentData";
+  // Voeg deze functie toe NA je init van app/db:
+window.pingFirebase = async function(){
+  try {
+    await set(ref(db, "_ping"), { ts: Date.now(), ok: true });
+    alert("✅ Verbonden met Firebase Realtime Database");
+  } catch (e) {
+    console.error(e);
+    alert("❌ Verbindingsfout: " + (e?.message || e));
+  }
+};
+
+
+  <!-- Zet deze knop in de toolbar, naast 'Reset' -->
+<button onclick="pingFirebase()">🔌 Test verbinding</button>
+
 
   // --- STATE ---
   let players = [];
