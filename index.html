@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Padel Dashboard – Admin (Firebase Live)</title>
+<style>
+  body{font-family:'Segoe UI',sans-serif;margin:0;
+    background:url('https://upload.wikimedia.org/wikipedia/commons/0/0b/Padel_court_blue.jpg') no-repeat center center fixed;
+    background-size:cover;color:#222}
+  body::before{content:"";position:fixed;inset:0;background:rgba(255,255,255,.7);z-index:-1}
+  header{text-align:center;padding:20px;font-size:1.8em;font-weight:700;
+    background:linear-gradient(90deg,#00b4d8,#48cae4);color:#fff;position:relative;overflow:hidden}
+  header small{display:block;font-size:.8em;color:#ffdd00}
+  .ball{position:absolute;top:50%;left:-50px;width:40px;height:40px;background:#ffdd00;border-radius:50%;
+    box-shadow:0 0 10px rgba(0,0,0,.25);animation:moveBall 6s linear infinite}
+  @keyframes moveBall{0%{left:-50px;transform:translateY(-50%) rotate(0)}
+    50%{left:calc(100% + 50px);transform:translateY(-50%) rotate(360deg)}
+    100%{left:-50px;transform:translateY(-50%) rotate(720deg)}}
+  .toolbar{text-align:center;padding:10px}
+  .toolbar button{padding:8px 14px;margin:5px;background:#00b4d8;border:0;color:#fff;border-radius:6px;cursor:pointer}
+  .toolbar button:hover{background:#0096c7}
+  .toolbar input{padding:8px;border:1px solid #cbd5e1;border-radius:6px}
+  .container{display:flex;flex-wrap:wrap;gap:20px;padding:20px}
+  section{background:#fff;padding:16px;border-radius:12px;flex:1;min-width:320px;
+    box-shadow:0 4px 12px rgba(0,0,0,.08)}
+  h2{margin:0 0 8px;display:flex;align-items:center;gap:8px;color:#0077b6}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th,td{padding:10px;border-bottom:1px solid #e2e8f0;text-align:center}
+  th{background:#00b4d8;color:#fff;font-weight:600}
+  input[type="number"]{width:60px;padding:6px;border:1px solid #cbd5e1;border-radius:6px}
+  .team1{background:#007bff;color:#fff;border-radius:6px;padding:6px 10px;display:inline-block}
+  .team2{background:#ff7b00;color:#fff;border-radius:6px;padding:6px 10px;display:inline-block}
+  .btn-win{background:#22c55e !important}.btn-win:hover{background:#16a34a !important}
+  .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#e2f6ff;color:#0369a1;font-weight:600}
+  .mini{font-size:.9em;color:#475569}
+  @media(max-width:900px){.container{flex-direction:column}}
+</style>
+</head>
+<body>
+<header>
+  🎾 Padel Dashboard – Admin
+  <div class="ball"></div>
+  <small id="currentDate"></small>
+</header>
+
+<div class="toolbar">
+  <input type="text" id="newPlayer" placeholder="Naam speler" />
+  <button onclick="addPlayer()">➕ Speler toevoegen</button>
+  <button style="background:#ef4444" onclick="resetAll()">🗑 Reset</button>
+</div>
+
+<div class="container">
+  <section>
+    <h2>🏆 <span>Leaderboard (Volledige ranking)</span></h2>
+    <div class="mini">Vink spelers aan die meedoen. Ranking wordt automatisch bepaald op basis van punten.</div>
+    <table id="leaderboard">
+      <thead>
+        <tr>
+          <th>Ranking</th>
+          <th>Actief</th>
+          <th>Naam</th>
+          <th>Gespeeld</th>
+          <th>Winst</th>
+          <th>Verlies</th>
+          <th>Win%</th>
+          <th>Punten</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>🔄 <span>Teamgenerator (sterk ↔ zwak)</span></h2>
+    <div class="mini">Gebruikt alleen <b>actieve</b> spelers. Hoogste punten worden gekoppeld aan laagste punten.</div>
+    <button onclick="generateTeams()">Genereer Teams 🏓</button>
+    <table id="teams">
+      <thead>
+        <tr>
+          <th class="team1">Team 1</th>
+          <th class="team2">Team 2</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</div>
+
+<section style="margin:0 20px 24px">
+  <h2>✅ <span>Snel resultaat invoeren (2 vs 2)</span></h2>
+  <div class="mini">Kies per team 2 spelers en klik op de winnaar. Leaderboard werkt dan automatisch bij (+3 punten bij winst).</div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin:8px 0">
+    <select id="t1a"></select>
+    <select id="t1b"></select>
+    <span class="badge">vs</span>
+    <select id="t2a"></select>
+    <select id="t2b"></select>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn-win" onclick="submitResult('team1')">✅ Team 1 wint</button>
+    <button class="btn-win" onclick="submitResult('team2')">✅ Team 2 wint</button>
+  </div>
+</section>
+
+<!-- Firebase v9 modules -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+  // === VUL HIER JE EIGEN FIREBASE CONFIG IN ===
+  const firebaseConfig = {
+    apiKey: "AIzaSyDsm0TVrNC4AAED9mJ2Qd164IsAIUC5EPs",
+    authDomain: "sunday-league-1c672.firebaseapp.com",
+    databaseURL: "https://sunday-league-1c672-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "sunday-league-1c672",
+    storageBucket: "sunday-league-1c672.firebasestorage.app",
+    messagingSenderId: "44787770094",
+    appId: "1:44787770094:web:f8e94ad091a49cda8d49ff"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getDatabase(app);
+  const DB_PATH = "tournamentData"; // viewer luistert hierop
+
+  // ---- State ----
+  let players = [];
+  const dateEl = document.getElementById('currentDate');
+  dateEl.textContent = new Date().toLocaleDateString('nl-NL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  // ---- Firebase helpers ----
+  async function saveToFirebase(){
+    await set(ref(db, DB_PATH), { players });
+  }
+  // Admin leest ook live mee (handig als je met meerdere admins werkt)
+  onValue(ref(db, DB_PATH), (snap)=>{
+    const data = snap.val();
+    if(!data) return;
+    players = data.players || [];
+    draw(); // render altijd op inkomende updates
+  });
+
+  // ---- UI actions ----
+  window.addPlayer = function(){
+    const inp = document.getElementById('newPlayer');
+    const name = (inp.value||'').trim();
+    if(!name) return;
+    players.push({name, played:0, wins:0, losses:0, points:0, active:false});
+    inp.value = '';
+    draw();
+    saveToFirebase();
+    blipBall();
+  }
+
+  window.resetAll = async function(){
+    if(!confirm("Weet je zeker dat je alles wilt resetten?")) return;
+    players = [];
+    draw();
+    await saveToFirebase();
+  }
+
+  window.toggleActive = async function(i){
+    players[i].active = !players[i].active;
+    await saveToFirebase();
+  }
+
+  window.setPoints = async function(i, val){
+    players[i].points = parseInt(val)||0;
+    draw();
+    await saveToFirebase();
+  }
+
+  // ---- Leaderboard (met ranking) ----
+  function drawLeaderboard(){
+    const tb = document.querySelector('#leaderboard tbody');
+    tb.innerHTML = '';
+    // sorteer met tie-break op win%
+    players.sort((a,b)=>{
+      if(b.points !== a.points) return b.points - a.points;
+      const awp = a.played? a.wins/a.played : 0;
+      const bwp = b.played? b.wins/b.played : 0;
+      if(bwp !== awp) return bwp - awp;
+      return (b.wins - a.wins);
+    });
+    players.forEach((p,i)=>{
+      const rank = i+1;
+      const medal = rank===1?'🥇 ':rank===2?'🥈 ':rank===3?'🥉 ':'';
+      const winPct = p.played>0 ? ((p.wins/p.played)*100).toFixed(1)+'%' : '0%';
+      tb.insertAdjacentHTML('beforeend', `
+        <tr>
+          <td>${medal}${rank}</td>
+          <td><input type="checkbox" ${p.active?'checked':''} onclick="toggleActive(${i})"></td>
+          <td>${p.name}</td>
+          <td>${p.played}</td>
+          <td>${p.wins}</td>
+          <td>${p.losses}</td>
+          <td>${winPct}</td>
+          <td><input type="number" value="${p.points}" onchange="setPoints(${i}, this.value)"></td>
+        </tr>
+      `);
+    });
+  }
+
+  // ---- Resultaat invoer (2v2) ----
+  function fillResultSelects(){
+    const selects = [t1a,t1b,t2a,t2b];
+    selects.forEach(sel=> sel.innerHTML='');
+    players.forEach((p,idx)=>{
+      selects.forEach(sel=>{
+        const o = document.createElement('option');
+        o.value = idx; o.textContent = p.name;
+        sel.appendChild(o.cloneNode(true));
+      });
+    });
+  }
+
+  window.submitResult = async function(winnerTeam){
+    const ids = [t1a.value, t1b.value, t2a.value, t2b.value].map(v=>parseInt(v));
+    if(new Set(ids).size!==4){ alert('Kies 4 verschillende spelers.'); return; }
+    const [i1,i2,i3,i4] = ids;
+    const team1 = [i1,i2], team2=[i3,i4];
+
+    // iedereen +1 gespeeld
+    [...team1,...team2].forEach(i=> players[i].played++);
+
+    const winners = (winnerTeam==='team1') ? team1 : team2;
+    const losers  = (winnerTeam==='team1') ? team2 : team1;
+
+    winners.forEach(i=>{ players[i].wins++; players[i].points += 3; });
+    losers.forEach(i=>{ players[i].losses++; });
+
+    draw();
+    await saveToFirebase();
+    toast(`Uitslag opgeslagen: ${players[winners[0]].name} & ${players[winners[1]].name} wonnen 🎉`);
+  }
+
+  // ---- Team generator (sterk ↔ zwak) ----
+  window.generateTeams = function(){
+    const acts = players.filter(p=>p.active);
+    if(acts.length<2){ alert('Minimaal 2 actieve spelers nodig!'); return; }
+    acts.sort((a,b)=> b.points - a.points);
+    const high = [...acts];
+    const low = high.splice(Math.ceil(acts.length/2));
+    const tb = document.querySelector('#teams tbody');
+    tb.innerHTML = '';
+    while(high.length && low.length){
+      const p1 = high.shift();
+      const p2 = low.pop();
+      tb.insertAdjacentHTML('beforeend', `<tr>
+        <td class="team1">${p1.name}</td>
+        <td class="team2">${p2.name}</td>
+      </tr>`);
+    }
+    swingRacket();
+  }
+
+  // ---- Animaties / feedback ----
+  function blipBall(){
+    const ball = document.createElement('div');
+    Object.assign(ball.style,{
+      position:'fixed',left:'50%',top:'-30px',width:'20px',height:'20px',
+      background:'#ffdd00',borderRadius:'50%',zIndex:9999,boxShadow:'0 2px 8px rgba(0,0,0,.2)'
+    });
+    document.body.appendChild(ball);
+    let y=-30, v=3, g=0.6, bounces=0;
+    const tick=()=>{ y+=v; v+=g; if(y>window.innerHeight-60){ y=window.innerHeight-60; v=-v*0.6; bounces++; }
+      ball.style.top=y+'px';
+      if(bounces>3){ ball.remove(); return; }
+      requestAnimationFrame(tick);
+    }; tick();
+  }
+  function swingRacket(){
+    const r=document.createElement('div');
+    r.textContent='🏓';
+    Object.assign(r.style,{position:'fixed',bottom:'20px',right:'20px',fontSize:'44px',animation:'swing 1s ease'});
+    document.body.appendChild(r); setTimeout(()=>r.remove(),1000);
+  }
+  function toast(msg){
+    const t=document.createElement('div');
+    t.textContent=msg;
+    Object.assign(t.style,{
+      position:'fixed',left:'50%',bottom:'24px',transform:'translateX(-50%)',
+      background:'#10b981',color:'#fff',padding:'10px 16px',borderRadius:'999px',
+      boxShadow:'0 6px 16px rgba(16,185,129,.35)',fontWeight:600,zIndex:9999
+    });
+    document.body.appendChild(t);
+    setTimeout(()=>{ t.style.transition='opacity .6s'; t.style.opacity='0'; },1200);
+    setTimeout(()=>t.remove(),1900);
+  }
+
+  function draw(){ drawLeaderboard(); fillResultSelects(); }
+
+  // init
+  draw();
+
+</script>
+
+<style>
+@keyframes swing{
+  0%{transform:rotate(0)}
+  25%{transform:rotate(18deg)}
+  50%{transform:rotate(-18deg)}
+  75%{transform:rotate(18deg)}
+  100%{transform:rotate(0)}
+}
+</style>
+</body>
+</html>
