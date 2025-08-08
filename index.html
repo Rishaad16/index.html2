@@ -14,9 +14,11 @@
   header small{display:block;font-size:.8em;color:#ffdd00}
   .ball{position:absolute;top:50%;left:-50px;width:40px;height:40px;background:#ffdd00;border-radius:50%;
     box-shadow:0 0 10px rgba(0,0,0,.25);animation:moveBall 6s linear infinite}
-  @keyframes moveBall{0%{left:-50px;transform:translateY(-50%) rotate(0)}
+  @keyframes moveBall{
+    0%{left:-50px;transform:translateY(-50%) rotate(0)}
     50%{left:calc(100% + 50px);transform:translateY(-50%) rotate(360deg)}
-    100%{left:-50px;transform:translateY(-50%) rotate(720deg)}}
+    100%{left:-50px;transform:translateY(-50%) rotate(720deg)}
+  }
   .toolbar{text-align:center;padding:10px}
   .toolbar button{padding:8px 14px;margin:5px;background:#00b4d8;border:0;color:#fff;border-radius:6px;cursor:pointer}
   .toolbar button:hover{background:#0096c7}
@@ -52,8 +54,8 @@
 
 <div class="container">
   <section>
-    <h2>🏆 <span>Leaderboard (Volledige ranking)</span></h2>
-    <div class="mini">Vink spelers aan die meedoen. Ranking wordt automatisch bepaald op basis van punten.</div>
+    <h2>🏆 Leaderboard (Volledige ranking)</h2>
+    <div class="mini">Vink spelers aan die meedoen. Ranking op basis van punten (tie-break: Win%).</div>
     <table id="leaderboard">
       <thead>
         <tr>
@@ -72,8 +74,8 @@
   </section>
 
   <section>
-    <h2>🔄 <span>Teamgenerator (sterk ↔ zwak)</span></h2>
-    <div class="mini">Gebruikt alleen <b>actieve</b> spelers. Hoogste punten worden gekoppeld aan laagste punten.</div>
+    <h2>🔄 Teamgenerator (sterk ↔ zwak)</h2>
+    <div class="mini">Gebruikt <b>actieve</b> spelers. Hoogste punten gekoppeld aan laagste.</div>
     <button onclick="generateTeams()">Genereer Teams 🏓</button>
     <table id="teams">
       <thead>
@@ -88,8 +90,8 @@
 </div>
 
 <section style="margin:0 20px 24px">
-  <h2>✅ <span>Snel resultaat invoeren (2 vs 2)</span></h2>
-  <div class="mini">Kies per team 2 spelers en klik op de winnaar. Leaderboard werkt dan automatisch bij (+3 punten bij winst).</div>
+  <h2>✅ Snel resultaat invoeren (2 vs 2)</h2>
+  <div class="mini">Kies per team 2 spelers en klik op de winnaar. (+3 punten bij winst)</div>
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin:8px 0">
     <select id="t1a"></select>
     <select id="t1b"></select>
@@ -103,52 +105,51 @@
   </div>
 </section>
 
-<!-- Firebase v9 modules -->
+<!-- Firebase via CDN (modules) -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
   import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
 
-  // === VUL HIER JE EIGEN FIREBASE CONFIG IN ===
-  const firebaseConfig = {
+  // === PLAK HIER JE EIGEN FIREBASE CONFIG ===
+const firebaseConfig = {
     apiKey: "AIzaSyDsm0TVrNC4AAED9mJ2Qd164IsAIUC5EPs",
     authDomain: "sunday-league-1c672.firebaseapp.com",
-    databaseURL: "https://sunday-league-1c672-default-rtdb.europe-west1.firebasedatabase.app",
     projectId: "sunday-league-1c672",
     storageBucket: "sunday-league-1c672.firebasestorage.app",
     messagingSenderId: "44787770094",
-    appId: "1:44787770094:web:f8e94ad091a49cda8d49ff"
+    appId: "1:44787770094:web:f8e94ad091a49cda8d49ff",
+    measurementId: "G-L8K2HKXFMR"
   };
 
   const app = initializeApp(firebaseConfig);
   const db  = getDatabase(app);
-  const DB_PATH = "tournamentData"; // viewer luistert hierop
+  const DB_PATH = "tournamentData";
 
-  // ---- State ----
+  // --- STATE ---
   let players = [];
-  const dateEl = document.getElementById('currentDate');
-  dateEl.textContent = new Date().toLocaleDateString('nl-NL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  currentDate.textContent = new Date().toLocaleDateString('nl-NL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 
-  // ---- Firebase helpers ----
-  async function saveToFirebase(){
-    await set(ref(db, DB_PATH), { players });
-  }
-  // Admin leest ook live mee (handig als je met meerdere admins werkt)
-  onValue(ref(db, DB_PATH), (snap)=>{
+  // --- SAVE to Firebase ---
+  async function saveToFirebase(){ await set(ref(db, DB_PATH), { players }); }
+
+  // --- LIVE READ (ook in admin handig) ---
+  onValue(ref(db, DB_PATH), snap=>{
     const data = snap.val();
-    if(!data) return;
-    players = data.players || [];
-    draw(); // render altijd op inkomende updates
+    if(data && Array.isArray(data.players)){
+      players = data.players;
+      draw();
+    }
   });
 
-  // ---- UI actions ----
-  window.addPlayer = function(){
+  // --- UI actions ---
+  window.addPlayer = async function(){
     const inp = document.getElementById('newPlayer');
     const name = (inp.value||'').trim();
     if(!name) return;
     players.push({name, played:0, wins:0, losses:0, points:0, active:false});
     inp.value = '';
     draw();
-    saveToFirebase();
+    await saveToFirebase();
     blipBall();
   }
 
@@ -170,11 +171,10 @@
     await saveToFirebase();
   }
 
-  // ---- Leaderboard (met ranking) ----
+  // --- Leaderboard (ranking) ---
   function drawLeaderboard(){
     const tb = document.querySelector('#leaderboard tbody');
     tb.innerHTML = '';
-    // sorteer met tie-break op win%
     players.sort((a,b)=>{
       if(b.points !== a.points) return b.points - a.points;
       const awp = a.played? a.wins/a.played : 0;
@@ -201,7 +201,7 @@
     });
   }
 
-  // ---- Resultaat invoer (2v2) ----
+  // --- Result selects ---
   function fillResultSelects(){
     const selects = [t1a,t1b,t2a,t2b];
     selects.forEach(sel=> sel.innerHTML='');
@@ -214,13 +214,13 @@
     });
   }
 
+  // --- 2v2 result ---
   window.submitResult = async function(winnerTeam){
     const ids = [t1a.value, t1b.value, t2a.value, t2b.value].map(v=>parseInt(v));
     if(new Set(ids).size!==4){ alert('Kies 4 verschillende spelers.'); return; }
     const [i1,i2,i3,i4] = ids;
     const team1 = [i1,i2], team2=[i3,i4];
 
-    // iedereen +1 gespeeld
     [...team1,...team2].forEach(i=> players[i].played++);
 
     const winners = (winnerTeam==='team1') ? team1 : team2;
@@ -234,18 +234,17 @@
     toast(`Uitslag opgeslagen: ${players[winners[0]].name} & ${players[winners[1]].name} wonnen 🎉`);
   }
 
-  // ---- Team generator (sterk ↔ zwak) ----
+  // --- Team generator ---
   window.generateTeams = function(){
     const acts = players.filter(p=>p.active);
     if(acts.length<2){ alert('Minimaal 2 actieve spelers nodig!'); return; }
     acts.sort((a,b)=> b.points - a.points);
     const high = [...acts];
-    const low = high.splice(Math.ceil(acts.length/2));
+    const low  = high.splice(Math.ceil(acts.length/2));
     const tb = document.querySelector('#teams tbody');
     tb.innerHTML = '';
     while(high.length && low.length){
-      const p1 = high.shift();
-      const p2 = low.pop();
+      const p1 = high.shift(), p2 = low.pop();
       tb.insertAdjacentHTML('beforeend', `<tr>
         <td class="team1">${p1.name}</td>
         <td class="team2">${p2.name}</td>
@@ -254,45 +253,35 @@
     swingRacket();
   }
 
-  // ---- Animaties / feedback ----
+  // --- UI helpers ---
+  function draw(){ drawLeaderboard(); fillResultSelects(); }
   function blipBall(){
     const ball = document.createElement('div');
-    Object.assign(ball.style,{
-      position:'fixed',left:'50%',top:'-30px',width:'20px',height:'20px',
-      background:'#ffdd00',borderRadius:'50%',zIndex:9999,boxShadow:'0 2px 8px rgba(0,0,0,.2)'
-    });
+    Object.assign(ball.style,{position:'fixed',left:'50%',top:'-30px',width:'20px',height:'20px',
+      background:'#ffdd00',borderRadius:'50%',zIndex:9999,boxShadow:'0 2px 8px rgba(0,0,0,.2)'});
     document.body.appendChild(ball);
-    let y=-30, v=3, g=0.6, bounces=0;
-    const tick=()=>{ y+=v; v+=g; if(y>window.innerHeight-60){ y=window.innerHeight-60; v=-v*0.6; bounces++; }
-      ball.style.top=y+'px';
-      if(bounces>3){ ball.remove(); return; }
-      requestAnimationFrame(tick);
-    }; tick();
+    let y=-30,v=3,g=0.6,b=0; const tick=()=>{ y+=v; v+=g; if(y>innerHeight-60){y=innerHeight-60; v=-v*.6;b++;} ball.style.top=y+'px';
+      if(b>3){ball.remove();return;} requestAnimationFrame(tick)}; tick();
   }
   function swingRacket(){
-    const r=document.createElement('div');
-    r.textContent='🏓';
+    const r=document.createElement('div'); r.textContent='🏓';
     Object.assign(r.style,{position:'fixed',bottom:'20px',right:'20px',fontSize:'44px',animation:'swing 1s ease'});
     document.body.appendChild(r); setTimeout(()=>r.remove(),1000);
   }
   function toast(msg){
-    const t=document.createElement('div');
-    t.textContent=msg;
-    Object.assign(t.style,{
-      position:'fixed',left:'50%',bottom:'24px',transform:'translateX(-50%)',
+    const t=document.createElement('div'); t.textContent=msg;
+    Object.assign(t.style,{position:'fixed',left:'50%',bottom:'24px',transform:'translateX(-50%)',
       background:'#10b981',color:'#fff',padding:'10px 16px',borderRadius:'999px',
-      boxShadow:'0 6px 16px rgba(16,185,129,.35)',fontWeight:600,zIndex:9999
-    });
-    document.body.appendChild(t);
-    setTimeout(()=>{ t.style.transition='opacity .6s'; t.style.opacity='0'; },1200);
+      boxShadow:'0 6px 16px rgba(16,185,129,.35)',fontWeight:600,zIndex:9999});
+    document.body.appendChild(t); setTimeout(()=>{t.style.transition='opacity .6s';t.style.opacity='0';},1200);
     setTimeout(()=>t.remove(),1900);
   }
 
-  function draw(){ drawLeaderboard(); fillResultSelects(); }
+  window.addPlayer=addPlayer; window.resetAll=resetAll; window.toggleActive=toggleActive;
+  window.setPoints=setPoints; window.generateTeams=generateTeams; window.submitResult=submitResult;
 
   // init
   draw();
-
 </script>
 
 <style>
