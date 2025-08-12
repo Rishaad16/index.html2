@@ -182,35 +182,34 @@ window.pingFirebase = async function(){
   }
 
  window.setPlayed = async function(i, val){
-  let v = parseInt(val); if(isNaN(v) || v < 0) v = 0;
-  // Zorg dat gespeeld >= wins + losses
-  const w = players[i].wins || 0;
-  const l = players[i].losses || 0;
-  players[i].played = Math.max(v, w + l);
-  draw();
-  await saveToFirebase();
-};
+  let played = parseInt(val);
+  if (isNaN(played) || played < 0) played = 0;
 
-window.setWins = async function(i, val){
-  let w = parseInt(val); if(isNaN(w) || w < 0) w = 0;
-  const l = players[i].losses || 0;
-  players[i].wins = w;
-  // Optie: gespeeld automatisch = wins + losses (nooit kleiner)
-  players[i].played = Math.max(players[i].played || 0, w + l);
+  const wins   = players[i].wins || 0;
+  const losses = players[i].losses || 0;
+
+  // Gespeeld mag niet kleiner zijn dan wins + losses
+  players[i].played = Math.max(played, wins + losses);
+
   draw();
-  await saveToFirebase();
+  await saveToFirebase(); // gebruik save() als je nog de localStorage-versie draait
 };
 
 window.setLosses = async function(i, val){
-  let l = parseInt(val); if(isNaN(l) || l < 0) l = 0;
-  const w = players[i].wins || 0;
-  players[i].losses = l;
-  // Optie: gespeeld automatisch = wins + losses (nooit kleiner)
-  players[i].played = Math.max(players[i].played || 0, w + l);
-  draw();
-  await saveToFirebase();
-};
+  let losses = parseInt(val);
+  if (isNaN(losses) || losses < 0) losses = 0;
 
+  const wins   = players[i].wins || 0;
+  const played = players[i].played || 0;
+
+  players[i].losses = losses;
+
+  // Gespeeld mag niet kleiner zijn dan wins + losses
+  players[i].played = Math.max(played, wins + losses);
+
+  draw();
+  await saveToFirebase(); // gebruik save() als je nog de localStorage-versie draait
+};
 
   // --- Leaderboard (ranking) ---
   function drawLeaderboard(){
@@ -228,18 +227,15 @@ window.setLosses = async function(i, val){
       const medal = rank===1?'🥇 ':rank===2?'🥈 ':rank===3?'🥉 ':'';
       const winPct = p.played>0 ? ((p.wins/p.played)*100).toFixed(1)+'%' : '0%';
       tb.insertAdjacentHTML('beforeend', `
-        <tr>
-          <td>${medal}${rank}</td>
+  <tr>
+    <td>${medal}${rank}</td>
     <td><input type="checkbox" ${p.active?'checked':''} onclick="toggleActive(${i})"></td>
     <td>${p.name}</td>
     <td>
       <input type="number" min="0" value="${p.played}"
              onchange="setPlayed(${i}, this.value)" style="width:70px">
     </td>
-    <td>
-      <input type="number" min="0" value="${p.wins}"
-             onchange="setWins(${i}, this.value)" style="width:70px">
-    </td>
+    <td>${p.wins}</td>
     <td>
       <input type="number" min="0" value="${p.losses}"
              onchange="setLosses(${i}, this.value)" style="width:70px">
