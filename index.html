@@ -46,11 +46,27 @@
   <small id="currentDate"></small>
 </header>
 
-<div class="toolbar">
-  <input type="text" id="newPlayer" placeholder="Naam speler" />
-  <button onclick="addPlayer()">➕ Speler toevoegen</button>
-  <button style="background:#ef4444" onclick="resetAll()">🗑 Reset</button>
+div class="toolbar flex gap-2">
+  <label for="newPlayer" class="sr-only">Naam speler</label>
+  <input type="text" id="newPlayer" placeholder="Naam speler" class="border p-2 rounded" />
+  <button id="addPlayerBtn" class="bg-green-500 text-white px-3 py-1 rounded">➕ Speler toevoegen</button>
+  <button id="resetBtn" class="bg-red-500 text-white px-3 py-1 rounded">🗑 Reset</button>
 </div>
+
+<script>
+  document.getElementById("addPlayerBtn").addEventListener("click", addPlayer);
+  document.getElementById("resetBtn").addEventListener("click", resetAll);
+
+  function addPlayer() {
+    console.log("Speler toevoegen");
+    // jouw logica
+  }
+
+  function resetAll() {
+    console.log("Reset alles");
+    // jouw logica
+  }
+</script>
 
 <div class="container">
   <section>
