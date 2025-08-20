@@ -107,8 +107,8 @@
 
 <!-- Firebase via CDN (modules) -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+  import { initializeApp } from "firebase/app";
+  import { getAnalytics } from "firebase/analytics";
 
   // === PLAK HIER JE EIGEN FIREBASE CONFIG ===
 const firebaseConfig = {
@@ -123,7 +123,7 @@ const firebaseConfig = {
   };
 
   const app = initializeApp(firebaseConfig);
-  const db  = getDatabase(app);
+  const analytics = getAnalytics(app);
   const DB_PATH = "tournamentData";
   // Voeg deze functie toe NA je init van app/db:
 window.pingFirebase = async function(){
